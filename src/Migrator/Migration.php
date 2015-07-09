@@ -10,20 +10,23 @@ class Migration
     protected $dbName = false;
     protected $dbUser = false;
     protected $dbPass = false;
+    protected $storageTable = false;
 
     protected $connection = false;
 
-    public function __construct($dbName, $dbUser, $dbPass, $dbHost = 'localhost')
+    public function __construct($dbName, $dbUser, $dbPass, $dbHost = 'localhost', $storageTable = 'migrations')
     {
         $this->dbHost = $dbHost;
         $this->dbName = $dbName;
         $this->dbUser = $dbUser;
         $this->dbPass = $dbPass;
+        $this->storageTable = $storageTable;
 
         $this->connection = @mysql_connect($this->dbHost, $this->dbUser, $this->dbPass);
         if (!$this->connection) {
             throw new MigrationException('MySQL connect error');
         }
+        mysql_set_charset('utf8', $this->connection);
 
         if (!@mysql_select_db('information_schema')) {
             throw new MigrationException('MySQL access error');
@@ -32,6 +35,71 @@ class Migration
 
     public function run()
     {
-        var_dump($this->connection);
+        $this->getDifference();
+    }
+
+    protected function getDifference()
+    {
+        $currentTables = $this->getCurrentTables();
+        var_dump($currentTables);
+    }
+
+    /**
+     * @return array
+     * @throws MigrationException
+     */
+    protected function getCurrentTables()
+    {
+        $sql = "SELECT * FROM `TABLES` WHERE `TABLE_SCHEMA` = '$this->dbName'; ";
+        try {
+            $result = mysql_query($sql);
+        } catch (\Exception $e) {
+            throw new MigrationException($e->getMessage(), $e->getCode());
+        }
+
+        $rows = array();
+        while ($row = mysql_fetch_assoc($result)) {
+            // Skip data table
+            if ($row['TABLE_NAME'] == $this->storageTable) {
+                continue;
+            }
+
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Install migration data table
+     *
+     * @param string $dbName
+     * @param string $dbUser
+     * @param string $dbPass
+     * @param string $dbHost
+     * @param string $storageTable
+     *
+     * @throws MigrationException
+     */
+    public static function install($dbName, $dbUser, $dbPass, $dbHost = 'localhost', $storageTable = 'migrations')
+    {
+        $installSql =   "CREATE TABLE {$storageTable} (
+                            `migration_time` INT(11) UNSIGNED NOT NULL,
+                            `status` TINYINT(1) UNSIGNED DEFAULT '0',
+                            `data` TEXT
+                        )ENGINE=InnoDB DEFAULT CHARSET=utf8;";
+        $connection = @mysql_connect($dbHost, $dbUser, $dbPass);
+        if ($connection) {
+            if (mysql_select_db($dbName)) {
+                mysql_set_charset('utf8', $connection);
+                if (!mysql_query($installSql)) {
+                    throw new MigrationException('Install query error');
+                }
+            } else {
+                throw new MigrationException('Install error');
+            }
+        } else {
+            throw new MigrationException('Install error');
+        }
     }
 }
