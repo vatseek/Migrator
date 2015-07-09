@@ -4,7 +4,7 @@ namespace Migrator;
 
 use Migrator\Exception\MigrationException;
 
-class Client
+class Migration
 {
     protected $dbHost = false;
     protected $dbName = false;
@@ -32,6 +32,6 @@ class Client
 
     public function run()
     {
-        die('123');
+        var_dump($this->connection);
     }
 }
