@@ -15,6 +15,5 @@
     },
     "psr-0": {
       "Migrator": "src/"
-    },
-    "target-dir": "vatseek/Migrator"
+    }
 }
