@@ -14,6 +14,10 @@ class Migration
 
     protected $connection = false;
 
+    protected $storedData = false;
+
+    const SCHEMA_DATABASE = 'information_schema';
+
     public function __construct($dbName, $dbUser, $dbPass, $dbHost = 'localhost', $storageTable = 'migrations')
     {
         $this->dbHost = $dbHost;
@@ -28,9 +32,11 @@ class Migration
         }
         mysql_set_charset('utf8', $this->connection);
 
-        if (!@mysql_select_db('information_schema')) {
+        if (!@mysql_select_db(self::SCHEMA_DATABASE)) {
             throw new MigrationException('MySQL access error');
         }
+
+        $this->loadData();
     }
 
     public function run()
@@ -51,20 +57,12 @@ class Migration
     protected function getCurrentTables()
     {
         $sql = "SELECT * FROM `TABLES` WHERE `TABLE_SCHEMA` = '$this->dbName'; ";
-        try {
-            $result = mysql_query($sql);
-        } catch (\Exception $e) {
-            throw new MigrationException($e->getMessage(), $e->getCode());
-        }
-
-        $rows = array();
-        while ($row = mysql_fetch_assoc($result)) {
-            // Skip data table
-            if ($row['TABLE_NAME'] == $this->storageTable) {
-                continue;
+        $rows = $this->runQuery($sql);
+        foreach ($rows as $key => $table) {
+            if ($table['TABLE_NAME'] == $this->storageTable) {
+                unset($rows[$key]);
+                break;
             }
-
-            $rows[] = $row;
         }
 
         return $rows;
@@ -101,5 +99,29 @@ class Migration
         } else {
             throw new MigrationException('Install error');
         }
+    }
+
+    private function loadData()
+    {
+        $sql = "SELECT * FROM `{$this->dbName}`.`{$this->storageTable}` AS _st
+                WHERE _st.migration_time = (SELECT MAX(migration_time) FROM `{$this->storageTable}`);";
+
+        $this->storedData = $this->runQuery($sql);
+    }
+
+    private function runQuery($sql)
+    {
+        try {
+            $result = mysql_query($sql);
+        } catch (\Exception $e) {
+            throw new MigrationException($e->getMessage(), $e->getCode());
+        }
+
+        $rows = array();
+        while ($row = mysql_fetch_assoc($result)) {
+            $rows[] = $row;
+        }
+
+        return $rows;
     }
 }
