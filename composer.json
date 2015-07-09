@@ -1,8 +1,6 @@
 {
     "name": "vatseek/migrator",
-    "description": "Migrate database changes (MySQL)",
-    "keywords": ["Mysql", "Migration"],
-    "license": "MIT",
+    "description": "Db migration",
     "authors": [
         {
             "name": "vatseek",
@@ -11,9 +9,11 @@
     ],
     "minimum-stability": "dev",
     "require": {
-        "php": ">=5.3.3"
+        "php": ">=5.3.0"
     },
-    "psr-0": {
-      "Migrator": "src/"
+    "autoload": {
+        "psr-0": {
+            "Migrator": "src/"
+        }
     }
 }
