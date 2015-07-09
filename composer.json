@@ -1,0 +1,20 @@
+{
+    "name": "vatseek/migrator",
+    "description": "Migrate database changes (MySQL)",
+    "keywords": ["Mysql", "Migration"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "vatseek",
+            "email": "vadim.gumennyj@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.3.3"
+    },
+    "psr-0": {
+      "Migrator": "src/"
+    },
+    "target-dir": "vatseek/Migrator"
+}
