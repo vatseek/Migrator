@@ -14,7 +14,7 @@ class Migration
 
     protected $connection = false;
 
-    protected $storedData = false;
+    protected $storedData = array();
 
     const SCHEMA_DATABASE = 'information_schema';
 
@@ -47,7 +47,23 @@ class Migration
     protected function getDifference()
     {
         $currentTables = $this->getCurrentTables();
-        var_dump($currentTables);
+        foreach ($currentTables as $table) {
+            foreach ($this->storedData as $storedTable) {
+                if ($storedTable['TABLE_NAME'] == $table['TABLE_NAME']) {
+                    $diff = array_diff($storedTable, $table);
+                    if ($diff) {
+                        $this->createTableMigration($table, $diff);
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+    protected function createTableMigration($table, $diff)
+    {
+
     }
 
     /**
@@ -81,16 +97,16 @@ class Migration
      */
     public static function install($dbName, $dbUser, $dbPass, $dbHost = 'localhost', $storageTable = 'migrations')
     {
-        $installSql =   "CREATE TABLE {$storageTable} (
-                            `migration_time` INT(11) UNSIGNED NOT NULL,
-                            `status` TINYINT(1) UNSIGNED DEFAULT '0',
-                            `data` TEXT
-                        )ENGINE=InnoDB DEFAULT CHARSET=utf8;";
+        $sql =  "CREATE TABLE {$storageTable} (
+                    `migration_time` INT(11) UNSIGNED NOT NULL,
+                    `status` TINYINT(1) UNSIGNED DEFAULT '0',
+                    `data` TEXT
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
         $connection = @mysql_connect($dbHost, $dbUser, $dbPass);
         if ($connection) {
             if (mysql_select_db($dbName)) {
                 mysql_set_charset('utf8', $connection);
-                if (!mysql_query($installSql)) {
+                if (!mysql_query($sql)) {
                     throw new MigrationException('Install query error');
                 }
             } else {
@@ -104,9 +120,33 @@ class Migration
     private function loadData()
     {
         $sql = "SELECT * FROM `{$this->dbName}`.`{$this->storageTable}` AS _st
-                WHERE _st.migration_time = (SELECT MAX(migration_time) FROM `{$this->storageTable}`);";
+                WHERE _st.migration_time = (
+                    SELECT MAX(_st2.migration_time)
+                    FROM `{$this->dbName}`.`{$this->storageTable}` AS _st2
+                );";
 
-        $this->storedData = $this->runQuery($sql);
+        $result = $this->runQuery($sql);
+        if ($result && is_array($result)) {
+            $row = end($result);
+            $this->storedData = unserialize($row['data']);
+        }
+    }
+
+    private function setData($data)
+    {
+        $currentTime = time();
+        $dataStamp = serialize($data);
+        $sql = "INSERT INTO `{$this->dbName}`.`{$this->storageTable}`
+                SET
+                    `migration_time` = '{$currentTime}',
+                    `status` = '0',
+                    `data` = '{$dataStamp}';";
+
+        try {
+            mysql_query($sql);
+        } catch (\Exception $e) {
+            throw new MigrationException($e->getMessage(), $e->getCode());
+        }
     }
 
     private function runQuery($sql)
@@ -115,6 +155,10 @@ class Migration
             $result = mysql_query($sql);
         } catch (\Exception $e) {
             throw new MigrationException($e->getMessage(), $e->getCode());
+        }
+
+        if (!$result) {
+            return array();
         }
 
         $rows = array();
